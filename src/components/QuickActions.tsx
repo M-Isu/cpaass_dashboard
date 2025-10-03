@@ -1,7 +1,8 @@
-import { Plus, Send, Phone, Video, Code, Settings, X } from "lucide-react";
+import { Plus, Send, Phone, Video, Code, Settings, X, Save, FileText, Trash2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
+import { PredictiveTextInput } from "./PredictiveTextInput";
 
 const actions = [
   {
@@ -30,6 +31,28 @@ const actions = [
   },
 ];
 
+// Default templates
+const defaultTemplates = [
+  {
+    id: 1,
+    name: "Welcome Message",
+    content: "Welcome to our service! We're excited to have you on board. If you have any questions, feel free to reach out to us.",
+    category: "Welcome"
+  },
+  {
+    id: 2,
+    name: "Appointment Reminder",
+    content: "Hi! This is a friendly reminder about your appointment scheduled for tomorrow at 2:00 PM. Please reply to confirm.",
+    category: "Reminder"
+  },
+  {
+    id: 3,
+    name: "Thank You",
+    content: "Thank you for your business! We appreciate your trust in our services and look forward to serving you again.",
+    category: "Thanks"
+  }
+];
+
 export default function QuickActions() {
   const [showMessagePopup, setShowMessagePopup] = useState(false);
   const [showCallPopup, setShowCallPopup] = useState(false);
@@ -46,6 +69,14 @@ export default function QuickActions() {
   const [showMessageConfirmation, setShowMessageConfirmation] = useState(false);
   const [messagePhoneNumber, setMessagePhoneNumber] = useState("");
 
+  // Template-related state
+  const [templates, setTemplates] = useState(defaultTemplates);
+  const [showTemplateSection, setShowTemplateSection] = useState(false);
+  const [showSaveTemplate, setShowSaveTemplate] = useState(false);
+  const [templateName, setTemplateName] = useState("");
+  const [templateCategory, setTemplateCategory] = useState("General");
+  const [selectedTemplate, setSelectedTemplate] = useState(null);
+
   const handleActionClick = (actionTitle) => {
     if (actionTitle === "Send Message") {
       setShowMessagePopup(true);
@@ -58,60 +89,42 @@ export default function QuickActions() {
     }
   };
 
+  const handleSendMessage = async () => {
+    if (message.trim() && messagePhoneNumber.trim()) {
+      try {
+        const response = await fetch('http://localhost:8555/whatsapp-send/sendtext', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            apiId: "API5018835956",
+            apiPassword: "passwordtest",
+            smsType : "P",
+            encoding : "T",
+            senderId : "CPAAS_TEST",
+            phoneNumber: messagePhoneNumber,
+            textMessage: message
+          })
+        });
 
-  // const handleSendMessage = () => {
-  //   if (message.trim()) {
-  //     console.log("Sending message:", message);
-  //     setShowMessagePopup(false);
-  //     setMessage("");
-  //   }
-  // };
-
-
-const handleSendMessage = async () => {
-  if (message.trim() && messagePhoneNumber.trim()) {
-    try {
-      const response = await fetch('http://localhost:8555/whatsapp-send/sendtext', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-
-        },
-        body: JSON.stringify({
-
-          apiId: "API5018835956",
-          apiPassword: "passwordtest",
-          smsType : "P",
-          encoding : "T",
-          senderId : "CPAAS_TEST",
-          phoneNumber: messagePhoneNumber,
-          textMessage: message
-
-        })
-      });
-
-      if (response.ok) {
-        console.log("Message sent successfully");
-        setShowMessagePopup(false);
-        setMessage("");
-        setMessagePhoneNumber("");
-        // Show confirmation modal
-        setShowMessageConfirmation(true);
-        // Auto-hide confirmation after 3 seconds
-        setTimeout(() => {
-          setShowMessageConfirmation(false);
-        }, 3000);
-      } else {
-        console.error("Failed to send message");
-        // Handle error - maybe show an error modal
+        if (response.ok) {
+          console.log("Message sent successfully");
+          setShowMessagePopup(false);
+          setMessage("");
+          setMessagePhoneNumber("");
+          setShowMessageConfirmation(true);
+          setTimeout(() => {
+            setShowMessageConfirmation(false);
+          }, 3000);
+        } else {
+          console.error("Failed to send message");
+        }
+      } catch (error) {
+        console.error("Error sending message:", error);
       }
-    } catch (error) {
-      console.error("Error sending message:", error);
-      // Handle network error
     }
-  }
-};
-  
+  };
 
   const handleMakeCall = () => {
     if (phoneNumber.trim()) {
@@ -138,11 +151,15 @@ const handleSendMessage = async () => {
     }
   };
 
-const handleCloseMessagePopup = () => {
-  setShowMessagePopup(false);
-  setMessage("");
-  setMessagePhoneNumber("");
-};
+  const handleCloseMessagePopup = () => {
+    setShowMessagePopup(false);
+    setMessage("");
+    setMessagePhoneNumber("");
+    setShowTemplateSection(false);
+    setShowSaveTemplate(false);
+    setTemplateName("");
+    setSelectedTemplate(null);
+  };
 
   const handleCloseCallPopup = () => {
     setShowCallPopup(false);
@@ -158,6 +175,37 @@ const handleCloseMessagePopup = () => {
     setShowApiPopup(false);
     setApiEndpoint("");
     setApiPayload("");
+  };
+
+  // Template functions
+  const handleSaveTemplate = () => {
+    if (templateName.trim() && message.trim()) {
+      const newTemplate = {
+        id: Date.now(),
+        name: templateName,
+        content: message,
+        category: templateCategory
+      };
+      setTemplates([...templates, newTemplate]);
+      setTemplateName("");
+      setShowSaveTemplate(false);
+      console.log("Template saved successfully!");
+    }
+  };
+
+  const handleLoadTemplate = (template) => {
+    setMessage(template.content);
+    setSelectedTemplate(template);
+    setShowTemplateSection(false);
+  };
+
+  const handleDeleteTemplate = (templateId) => {
+    setTemplates(templates.filter(template => template.id !== templateId));
+  };
+
+  const getUniqueCategories = () => {
+    const categories = templates.map(template => template.category);
+    return [...new Set(categories)];
   };
 
   return (
@@ -192,7 +240,7 @@ const handleCloseMessagePopup = () => {
       {/* Message Popup Modal */}
       {showMessagePopup && (
         <div className="fixed inset-0 bg-gray-900 bg-opacity-60 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden">
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 bg-gray-50">
               <div className="flex items-center space-x-3">
                 <div className="w-10 h-10 bg-blue-500 rounded-lg flex items-center justify-center">
@@ -200,7 +248,7 @@ const handleCloseMessagePopup = () => {
                 </div>
                 <div>
                   <h3 className="text-xl font-semibold text-gray-900">Send Message</h3>
-                  <p className="text-sm text-gray-500">Compose and send your message</p>
+                  <p className="text-sm text-gray-500">Compose and send your message with AI assistance</p>
                 </div>
               </div>
               <Button
@@ -213,82 +261,244 @@ const handleCloseMessagePopup = () => {
               </Button>
             </div>
             
-            <div className="px-6 py-6 space-y-6">
-              <div className="space-y-2">
-                <label className="block text-sm font-semibold text-gray-700">To</label>
-                <div className="relative">
-                  <input
-                    type="text"
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
-                    placeholder="Enter phone number or contact name"
-                    value={messagePhoneNumber}
-                    onChange={(e) => setMessagePhoneNumber(e.target.value)}
-                  />
-                  <div className="absolute right-3 top-3">
-                    <span className="text-xs text-gray-400">+1 (555) 123-4567</span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <label className="block text-sm font-semibold text-gray-700">Message Type</label>
-                <div className="flex space-x-3">
-                  <button className="px-4 py-2 bg-blue-500 text-white rounded-lg text-sm font-medium">SMS</button>
-                  <button className="px-4 py-2 bg-gray-100 text-gray-600 rounded-lg text-sm font-medium hover:bg-gray-200">WhatsApp</button>
-                  <button className="px-4 py-2 bg-gray-100 text-gray-600 rounded-lg text-sm font-medium hover:bg-gray-200">Email</button>
-                </div>
-              </div>
-              
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <label htmlFor="message" className="block text-sm font-semibold text-gray-700">Message Content</label>
-                  <span className="text-xs text-gray-400">{message.length}/160 characters</span>
-                </div>
-                <textarea
-                  id="message"
-                  rows={5}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none text-sm leading-relaxed"
-                  placeholder="Type your message here..."
-                  value={message}
-                  onChange={(e) => setMessage(e.target.value)}
-                  autoFocus
-                />
-                <div className="flex items-center space-x-4 text-xs text-gray-500">
-                  <span>💡 Tip: Keep messages concise and clear</span>
-                  <span className={message.length > 160 ? 'text-red-500' : 'text-green-500'}>
-                    {message.length <= 160 ? '✓ Single SMS' : '⚠ Multiple SMS'}
-                  </span>
-                </div>
-              </div>
-
-              {message.trim() && (
-                <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
-                  <h4 className="text-sm font-semibold text-gray-700 mb-2">Preview</h4>
-                  <div className="bg-white rounded-lg p-3 border shadow-sm">
-                    <div className="flex items-start space-x-2">
-                      <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white text-xs font-semibold">You</div>
-                      <div className="flex-1">
-                        <p className="text-sm text-gray-800 leading-relaxed">{message}</p>
-                        <span className="text-xs text-gray-400 mt-1">Now</span>
-                      </div>
+            <div className="flex">
+              {/* Main Content */}
+              <div className="flex-1 px-6 py-6 space-y-6">
+                <div className="space-y-2">
+                  <label className="block text-sm font-semibold text-gray-700">To</label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                      placeholder="Enter phone number or contact name"
+                      value={messagePhoneNumber}
+                      onChange={(e) => setMessagePhoneNumber(e.target.value)}
+                    />
+                    <div className="absolute right-3 top-3">
+                      <span className="text-xs text-gray-400">+1 (555) 123-4567</span>
                     </div>
                   </div>
                 </div>
+
+                <div className="space-y-2">
+                  <label className="block text-sm font-semibold text-gray-700">Message Type</label>
+                  <div className="flex space-x-3">
+                    <button className="px-4 py-2 bg-blue-500 text-white rounded-lg text-sm font-medium">SMS</button>
+                    <button className="px-4 py-2 bg-gray-100 text-gray-600 rounded-lg text-sm font-medium hover:bg-gray-200">WhatsApp</button>
+                    <button className="px-4 py-2 bg-gray-100 text-gray-600 rounded-lg text-sm font-medium hover:bg-gray-200">Email</button>
+                  </div>
+                </div>
+                
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label htmlFor="message" className="block text-sm font-semibold text-gray-700">Message Content</label>
+                    <div className="flex items-center space-x-2">
+                      <span className="text-xs text-gray-400">{message.length}/160 characters</span>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setShowTemplateSection(!showTemplateSection)}
+                        className="h-7 px-2 text-xs"
+                      >
+                        <FileText className="w-3 h-3 mr-1" />
+                        Templates
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setShowSaveTemplate(!showSaveTemplate)}
+                        disabled={!message.trim()}
+                        className="h-7 px-2 text-xs"
+                      >
+                        <Save className="w-3 h-3 mr-1" />
+                        Save
+                      </Button>
+                    </div>
+                  </div>
+                  
+                  {/* Save Template Section */}
+                  {showSaveTemplate && (
+                    <div className="bg-blue-50 rounded-lg p-4 border border-blue-200 mb-4">
+                      <h4 className="text-sm font-semibold text-blue-800 mb-3">Save as Template</h4>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-xs font-medium text-blue-700 mb-1">Template Name</label>
+                          <input
+                            type="text"
+                            className="w-full px-3 py-2 border border-blue-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            placeholder="e.g., Holiday Greeting"
+                            value={templateName}
+                            onChange={(e) => setTemplateName(e.target.value)}
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-blue-700 mb-1">Category</label>
+                          <select
+                            value={templateCategory}
+                            onChange={(e) => setTemplateCategory(e.target.value)}
+                            className="w-full px-3 py-2 border border-blue-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          >
+                            <option value="General">General</option>
+                            <option value="Welcome">Welcome</option>
+                            <option value="Reminder">Reminder</option>
+                            <option value="Thanks">Thanks</option>
+                            <option value="Marketing">Marketing</option>
+                          </select>
+                        </div>
+                      </div>
+                      <div className="flex items-center space-x-2 mt-3">
+                        <Button
+                          size="sm"
+                          onClick={handleSaveTemplate}
+                          disabled={!templateName.trim() || !message.trim()}
+                          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-1 text-xs"
+                        >
+                          Save Template
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setShowSaveTemplate(false)}
+                          className="px-4 py-1 text-xs"
+                        >
+                          Cancel
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* AI-Powered Predictive Text Input */}
+                  <div className="relative">
+                    <PredictiveTextInput
+                      value={message}
+                      onChange={setMessage}
+                      placeholder="Start typing your message... AI will suggest completions as you type!"
+                      rows={5}
+                      //autoFocus
+                    />
+                    
+                    {/* AI Badge */}
+                    <div className="absolute top-2 right-2 bg-gradient-to-r from-blue-500 to-purple-600 text-white px-2 py-1 rounded-full text-xs font-medium flex items-center space-x-1">
+                      <span>🤖</span>
+                      <span>AI</span>
+                    </div>
+                  </div>
+                  
+                  {selectedTemplate && (
+                    <div className="text-xs text-blue-600 flex items-center space-x-1">
+                      <FileText className="w-3 h-3" />
+                      <span>Using template: {selectedTemplate.name}</span>
+                      <button
+                        onClick={() => setSelectedTemplate(null)}
+                        className="text-gray-400 hover:text-gray-600"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  )}
+                  
+                  <div className="flex items-center space-x-4 text-xs text-gray-500">
+                    <span>🤖 AI-powered text completion • Tab/Enter to accept suggestions</span>
+                    <span className={message.length > 160 ? 'text-red-500' : 'text-green-500'}>
+                      {message.length <= 160 ? '✓ Single SMS' : '⚠ Multiple SMS'}
+                    </span>
+                  </div>
+                </div>
+
+                {message.trim() && (
+                  <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                    <h4 className="text-sm font-semibold text-gray-700 mb-2">Preview</h4>
+                    <div className="bg-white rounded-lg p-3 border shadow-sm">
+                      <div className="flex items-start space-x-2">
+                        <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white text-xs font-semibold">You</div>
+                        <div className="flex-1">
+                          <p className="text-sm text-gray-800 leading-relaxed">{message}</p>
+                          <span className="text-xs text-gray-400 mt-1">Now</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                
+                <div className="flex items-center justify-between pt-4 border-t border-gray-200">
+                  <div className="flex items-center space-x-4 text-sm text-gray-500">
+                    <span>💰 Cost: $0.0075 per SMS</span>
+                    <span>🕐 Delivery: ~2-5 seconds</span>
+                  </div>
+                  <div className="flex items-center space-x-3">
+                    <Button variant="outline" onClick={handleCloseMessagePopup} className="px-6 py-2 border-gray-300 text-gray-700 hover:bg-gray-100">Cancel</Button>
+                    <Button onClick={handleSendMessage} disabled={!message.trim() || !messagePhoneNumber.trim()} className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50 disabled:cursor-not-allowed shadow-lg">
+                      <Send className="w-4 h-4 mr-2" />
+                      Send Message
+                    </Button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Template Sidebar */}
+              {showTemplateSection && (
+                <div className="w-80 border-l border-gray-200 bg-gray-50">
+                  <div className="p-4 border-b border-gray-200 bg-white">
+                    <div className="flex items-center justify-between">
+                      <h3 className="font-semibold text-gray-900">Message Templates</h3>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setShowTemplateSection(false)}
+                        className="h-6 w-6 p-0"
+                      >
+                        <X className="w-4 h-4" />
+                      </Button>
+                    </div>
+                    <p className="text-xs text-gray-500 mt-1">Click to load a template</p>
+                  </div>
+                  
+                  <div className="p-4 space-y-4 max-h-96 overflow-y-auto">
+                    {getUniqueCategories().map(category => (
+                      <div key={category}>
+                        <h4 className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2">{category}</h4>
+                        <div className="space-y-2">
+                          {templates.filter(template => template.category === category).map(template => (
+                            <div
+                              key={template.id}
+                              className="group bg-white rounded-lg p-3 border border-gray-200 hover:border-blue-300 hover:shadow-sm cursor-pointer transition-all"
+                              onClick={() => handleLoadTemplate(template)}
+                            >
+                              <div className="flex items-start justify-between">
+                                <div className="flex-1 min-w-0">
+                                  <h5 className="text-sm font-medium text-gray-900 truncate">{template.name}</h5>
+                                  <p className="text-xs text-gray-500 mt-1 line-clamp-2">{template.content}</p>
+                                </div>
+                                {template.id > 3 && (
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleDeleteTemplate(template.id);
+                                    }}
+                                    className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity ml-2"
+                                  >
+                                    <Trash2 className="w-3 h-3 text-red-500" />
+                                  </Button>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                    
+                    {templates.length === 0 && (
+                      <div className="text-center py-8">
+                        <FileText className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                        <p className="text-sm text-gray-500">No templates saved yet</p>
+                        <p className="text-xs text-gray-400">Create your first template by typing a message and clicking Save</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
               )}
-            </div>
-            
-            <div className="flex items-center justify-between px-6 py-4 border-t border-gray-200 bg-gray-50">
-              <div className="flex items-center space-x-4 text-sm text-gray-500">
-                <span>💰 Cost: $0.0075 per SMS</span>
-                <span>🕐 Delivery: ~2-5 seconds</span>
-              </div>
-              <div className="flex items-center space-x-3">
-                <Button variant="outline" onClick={handleCloseMessagePopup} className="px-6 py-2 border-gray-300 text-gray-700 hover:bg-gray-100">Cancel</Button>
-                <Button onClick={handleSendMessage} disabled={!message.trim() || !messagePhoneNumber.trim()} className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50 disabled:cursor-not-allowed shadow-lg">
-                  <Send className="w-4 h-4 mr-2" />
-                  Send Message
-                </Button>
-              </div>
             </div>
           </div>
         </div>
@@ -588,7 +798,6 @@ X-API-Key: your-api-key`}
           </div>
         </div>
       )}
-
 
       {/* Message Confirmation Modal */}
       {showMessageConfirmation && (
