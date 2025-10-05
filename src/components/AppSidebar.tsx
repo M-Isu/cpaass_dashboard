@@ -1,4 +1,8 @@
 import { useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
+import { apiService } from "@/lib/api";
+import { useToast } from "@/hooks/use-toast";
 import { 
   MessageSquare, 
   Phone, 
@@ -14,7 +18,13 @@ import {
   X,
   Save,
   FileText,
-  Trash2
+  Trash2,
+  Shield,
+  Chrome,
+  Facebook,
+  MessageCircle,
+  LogOut,
+  User
 } from "lucide-react";
 import { PredictiveTextInput } from "./PredictiveTextInput";
 import {
@@ -34,7 +44,7 @@ import { Button } from "@/components/ui/button";
 const menuItems = [
   {
     title: "Dashboard",
-    url: "#",
+    url: "/",
     icon: Home,
   },
   {
@@ -63,6 +73,8 @@ const menuItems = [
     icon: BarChart3,
   },
 ];
+
+// Removed backend integration tab - functionality moved to Quick Actions
 
 const accountItems = [
   {
@@ -110,6 +122,9 @@ const defaultTemplates = [
 ];
 
 export function AppSidebar() {
+  const { user, logout } = useAuth();
+  const navigate = useNavigate();
+  const { toast } = useToast();
   const [showMessagePopup, setShowMessagePopup] = useState(false);
   const [showCallPopup, setShowCallPopup] = useState(false);
   const [showVideoPopup, setShowVideoPopup] = useState(false);
@@ -148,36 +163,29 @@ export function AppSidebar() {
   const handleSendMessage = async () => {
     if (message.trim() && messagePhoneNumber.trim()) {
       try {
-        const response = await fetch('http://localhost:8555/whatsapp-send/sendtext', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            apiId: "API5018835956",
-            apiPassword: "passwordtest",
-            smsType : "P",
-            encoding : "T",
-            senderId : "CPAAS_TEST",
-            phoneNumber: messagePhoneNumber,
-            textMessage: message
-          })
+        // Use the new API service for WhatsApp messaging
+        const response = await apiService.sendWhatsAppMessage(messagePhoneNumber, message);
+        
+        console.log("Message sent successfully", response);
+        toast({
+          title: "Message Sent",
+          description: "WhatsApp message sent successfully!",
         });
-
-        if (response.ok) {
-          console.log("Message sent successfully");
-          setShowMessagePopup(false);
-          setMessage("");
-          setMessagePhoneNumber("");
-          setShowMessageConfirmation(true);
-          setTimeout(() => {
-            setShowMessageConfirmation(false);
-          }, 3000);
-        } else {
-          console.error("Failed to send message");
-        }
-      } catch (error){
+        
+        setShowMessagePopup(false);
+        setMessage("");
+        setMessagePhoneNumber("");
+        setShowMessageConfirmation(true);
+        setTimeout(() => {
+          setShowMessageConfirmation(false);
+        }, 3000);
+      } catch (error) {
         console.error("Error sending message:", error);
+        toast({
+          title: "Failed to Send Message",
+          description: error instanceof Error ? error.message : "An error occurred while sending the message",
+          variant: "destructive",
+        });
       }
     }
   };
@@ -264,6 +272,11 @@ export function AppSidebar() {
     return [...new Set(categories)];
   };
 
+  const handleLogout = () => {
+    logout();
+    navigate('/login');
+  };
+
   return (
     <>
       <Sidebar className="border-r border-blue-100">
@@ -288,10 +301,10 @@ export function AppSidebar() {
                   <SidebarMenuItem key={item.title}>
                     <SidebarMenuButton asChild className="hover:bg-blue-50 hover:text-blue-700">
                       {item.title === "Dashboard" || item.title === "Analytics" ? (
-                        <a href={item.url} className="flex items-center space-x-2">
+                        <Link to={item.url} className="flex items-center space-x-2">
                           <item.icon className="w-4 h-4" />
                           <span>{item.title}</span>
-                        </a>
+                        </Link>
                       ) : (
                         <button
                           onClick={() => handleMenuItemClick(item.title)}
@@ -307,6 +320,7 @@ export function AppSidebar() {
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>
+
 
           <SidebarGroup>
             <SidebarGroupLabel className="text-blue-800 font-semibold">Account</SidebarGroupLabel>
@@ -328,14 +342,37 @@ export function AppSidebar() {
         </SidebarContent>
 
         <SidebarFooter className="p-4">
-          <div className="flex items-center space-x-2 p-2 bg-blue-50 rounded-lg">
-            <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center">
-              <span className="text-white text-sm font-semibold">JD</span>
+          <div className="space-y-2">
+            <div className="flex items-center space-x-2 p-2 bg-blue-50 rounded-lg">
+              <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center">
+                {user?.picture ? (
+                  <img 
+                    src={user.picture} 
+                    alt={user.name}
+                    className="w-8 h-8 rounded-full object-cover"
+                  />
+                ) : (
+                  <User className="w-4 h-4 text-white" />
+                )}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-blue-900 truncate">
+                  {user?.name || 'User'}
+                </p>
+                <p className="text-xs text-blue-600 truncate">
+                  {user?.email || 'user@example.com'}
+                </p>
+              </div>
             </div>
-            <div className="flex-1">
-              <p className="text-sm font-medium text-blue-900">testUser</p>
-              <p className="text-xs text-blue-600">Admin</p>
-            </div>
+            <Button
+              onClick={handleLogout}
+              variant="ghost"
+              size="sm"
+              className="w-full justify-start text-gray-600 hover:text-red-600 hover:bg-red-50"
+            >
+              <LogOut className="w-4 h-4 mr-2" />
+              Sign Out
+            </Button>
           </div>
         </SidebarFooter>
       </Sidebar>

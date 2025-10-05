@@ -1,8 +1,10 @@
-import { Plus, Send, Phone, Video, Code, Settings, X, Save, FileText, Trash2 } from "lucide-react";
+import { Plus, Send, Phone, Video, Code, Settings, X, Save, FileText, Trash2, Mail, Smartphone } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
 import { PredictiveTextInput } from "./PredictiveTextInput";
+import { apiService } from "@/lib/api";
+import { useToast } from "@/hooks/use-toast";
 
 const actions = [
   {
@@ -54,6 +56,7 @@ const defaultTemplates = [
 ];
 
 export default function QuickActions() {
+  const { toast } = useToast();
   const [showMessagePopup, setShowMessagePopup] = useState(false);
   const [showCallPopup, setShowCallPopup] = useState(false);
   const [showVideoPopup, setShowVideoPopup] = useState(false);
@@ -68,6 +71,10 @@ export default function QuickActions() {
   const [apiPayload, setApiPayload] = useState("");
   const [showMessageConfirmation, setShowMessageConfirmation] = useState(false);
   const [messagePhoneNumber, setMessagePhoneNumber] = useState("");
+  const [messageType, setMessageType] = useState("sms");
+  const [emailAddress, setEmailAddress] = useState("");
+  const [emailSubject, setEmailSubject] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
 
   // Template-related state
   const [templates, setTemplates] = useState(defaultTemplates);
@@ -90,39 +97,85 @@ export default function QuickActions() {
   };
 
   const handleSendMessage = async () => {
-    if (message.trim() && messagePhoneNumber.trim()) {
-      try {
-        const response = await fetch('http://localhost:8555/whatsapp-send/sendtext', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            apiId: "API5018835956",
-            apiPassword: "passwordtest",
-            smsType : "P",
-            encoding : "T",
-            senderId : "CPAAS_TEST",
-            phoneNumber: messagePhoneNumber,
-            textMessage: message
-          })
-        });
+    if (!message.trim()) {
+      toast({
+        title: "Error",
+        description: "Please enter a message",
+        variant: "destructive",
+      });
+      return;
+    }
 
-        if (response.ok) {
-          console.log("Message sent successfully");
-          setShowMessagePopup(false);
-          setMessage("");
-          setMessagePhoneNumber("");
-          setShowMessageConfirmation(true);
-          setTimeout(() => {
-            setShowMessageConfirmation(false);
-          }, 3000);
-        } else {
-          console.error("Failed to send message");
-        }
-      } catch (error) {
-        console.error("Error sending message:", error);
+    if (messageType === "sms" && !messagePhoneNumber.trim()) {
+      toast({
+        title: "Error",
+        description: "Please enter a phone number for SMS",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (messageType === "whatsapp" && !messagePhoneNumber.trim()) {
+      toast({
+        title: "Error",
+        description: "Please enter a phone number for WhatsApp",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (messageType === "email" && !emailAddress.trim()) {
+      toast({
+        title: "Error",
+        description: "Please enter an email address",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      let response;
+      
+      switch (messageType) {
+        case 'sms':
+          response = await apiService.sendSMS(messagePhoneNumber, message);
+          break;
+        case 'email':
+          // Pass subject separately; backend now uses it as service_name
+          response = await apiService.sendEmail(emailAddress, emailSubject, message);
+          break;
+        case 'whatsapp':
+          response = await apiService.sendWhatsAppMessage(messagePhoneNumber, message);
+          break;
+        default:
+          throw new Error('Invalid message type');
       }
+
+      console.log("Message sent successfully", response);
+      toast({
+        title: "Message Sent Successfully",
+        description: `Your ${messageType.toUpperCase()} message has been sent!`,
+      });
+
+      setShowMessagePopup(false);
+      setMessage("");
+      setMessagePhoneNumber("");
+      setEmailAddress("");
+      setEmailSubject("");
+      setShowMessageConfirmation(true);
+      setTimeout(() => {
+        setShowMessageConfirmation(false);
+      }, 3000);
+    } catch (error) {
+      console.error("Error sending message:", error);
+      toast({
+        title: "Failed to Send Message",
+        description: error instanceof Error ? error.message : "An error occurred while sending the message",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -155,10 +208,14 @@ export default function QuickActions() {
     setShowMessagePopup(false);
     setMessage("");
     setMessagePhoneNumber("");
+    setEmailAddress("");
+    setEmailSubject("");
+    setMessageType("sms");
     setShowTemplateSection(false);
     setShowSaveTemplate(false);
     setTemplateName("");
     setSelectedTemplate(null);
+    setIsLoading(false);
   };
 
   const handleCloseCallPopup = () => {
@@ -265,29 +322,84 @@ export default function QuickActions() {
               {/* Main Content */}
               <div className="flex-1 px-6 py-6 space-y-6">
                 <div className="space-y-2">
-                  <label className="block text-sm font-semibold text-gray-700">To</label>
-                  <div className="relative">
-                    <input
-                      type="text"
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
-                      placeholder="Enter phone number or contact name"
-                      value={messagePhoneNumber}
-                      onChange={(e) => setMessagePhoneNumber(e.target.value)}
-                    />
-                    <div className="absolute right-3 top-3">
-                      <span className="text-xs text-gray-400">+1 (555) 123-4567</span>
-                    </div>
+                  <label className="block text-sm font-semibold text-gray-700">Message Type</label>
+                  <div className="flex space-x-3">
+                    <button 
+                      className={`px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 ${
+                        messageType === 'sms' ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      }`}
+                      onClick={() => setMessageType('sms')}
+                    >
+                      <Phone className="w-4 h-4" />
+                      SMS
+                    </button>
+                    <button 
+                      className={`px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 ${
+                        messageType === 'whatsapp' ? 'bg-green-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      }`}
+                      onClick={() => setMessageType('whatsapp')}
+                    >
+                      <Smartphone className="w-4 h-4" />
+                      WhatsApp
+                    </button>
+                    <button 
+                      className={`px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 ${
+                        messageType === 'email' ? 'bg-red-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      }`}
+                      onClick={() => setMessageType('email')}
+                    >
+                      <Mail className="w-4 h-4" />
+                      Email
+                    </button>
                   </div>
                 </div>
 
-                <div className="space-y-2">
-                  <label className="block text-sm font-semibold text-gray-700">Message Type</label>
-                  <div className="flex space-x-3">
-                    <button className="px-4 py-2 bg-blue-500 text-white rounded-lg text-sm font-medium">SMS</button>
-                    <button className="px-4 py-2 bg-gray-100 text-gray-600 rounded-lg text-sm font-medium hover:bg-gray-200">WhatsApp</button>
-                    <button className="px-4 py-2 bg-gray-100 text-gray-600 rounded-lg text-sm font-medium hover:bg-gray-200">Email</button>
+                {/* Phone Number (for SMS and WhatsApp) */}
+                {(messageType === 'sms' || messageType === 'whatsapp') && (
+                  <div className="space-y-2">
+                    <label className="block text-sm font-semibold text-gray-700">Phone Number</label>
+                    <div className="relative">
+                      <input
+                        type="tel"
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                        placeholder="Enter phone number"
+                        value={messagePhoneNumber}
+                        onChange={(e) => setMessagePhoneNumber(e.target.value)}
+                      />
+                      <div className="absolute right-3 top-3">
+                        <span className="text-xs text-gray-400">+1 (555) 123-4567</span>
+                      </div>
+                    </div>
                   </div>
-                </div>
+                )}
+
+                {/* Email Address (for Email) */}
+                {messageType === 'email' && (
+                  <div className="space-y-2">
+                    <label className="block text-sm font-semibold text-gray-700">Email Address</label>
+                    <input
+                      type="email"
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                      placeholder="Enter email address"
+                      value={emailAddress}
+                      onChange={(e) => setEmailAddress(e.target.value)}
+                    />
+                  </div>
+                )}
+
+                {/* Email Subject (for Email) */}
+                {messageType === 'email' && (
+                  <div className="space-y-2">
+                    <label className="block text-sm font-semibold text-gray-700">Subject</label>
+                    <input
+                      type="text"
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                      placeholder="Enter email subject"
+                      value={emailSubject}
+                      onChange={(e) => setEmailSubject(e.target.value)}
+                    />
+                  </div>
+                )}
                 
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
@@ -427,9 +539,23 @@ export default function QuickActions() {
                   </div>
                   <div className="flex items-center space-x-3">
                     <Button variant="outline" onClick={handleCloseMessagePopup} className="px-6 py-2 border-gray-300 text-gray-700 hover:bg-gray-100">Cancel</Button>
-                    <Button onClick={handleSendMessage} disabled={!message.trim() || !messagePhoneNumber.trim()} className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50 disabled:cursor-not-allowed shadow-lg">
-                      <Send className="w-4 h-4 mr-2" />
-                      Send Message
+                    <Button 
+                      onClick={handleSendMessage} 
+                      disabled={
+                        isLoading || 
+                        !message.trim() || 
+                        (messageType === 'sms' && !messagePhoneNumber.trim()) ||
+                        (messageType === 'whatsapp' && !messagePhoneNumber.trim()) ||
+                        (messageType === 'email' && !emailAddress.trim())
+                      } 
+                      className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
+                    >
+                      {isLoading ? (
+                        <div className="w-4 h-4 mr-2 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                      ) : (
+                        <Send className="w-4 h-4 mr-2" />
+                      )}
+                      {isLoading ? 'Sending...' : `Send ${messageType.toUpperCase()}`}
                     </Button>
                   </div>
                 </div>
