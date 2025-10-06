@@ -43,7 +43,7 @@ class ApiService {
   // Google Authentication
   async initiateGoogleLogin(): Promise<void> {
     // Open Google OAuth in a popup window with callback URL
-    const callbackUrl = encodeURIComponent(`${window.location.origin}/oauth/callback?provider=google`);
+    const callbackUrl = encodeURIComponent(`http://localhost:3000/oauth/callback?provider=google`);
     const popup = window.open(
       `${this.baseUrl}/auth/google/signin?callback=${callbackUrl}`,
       'googleAuth',
@@ -83,7 +83,7 @@ class ApiService {
   // Facebook Authentication
   async initiateFacebookLogin(): Promise<void> {
     // Open Facebook OAuth in a popup window with callback URL
-    const callbackUrl = encodeURIComponent(`${window.location.origin}/oauth/callback?provider=facebook`);
+    const callbackUrl = encodeURIComponent(`http://localhost:3000/oauth/callback?provider=facebook`);
     const popup = window.open(
       `${this.baseUrl}/auth/facebook/signin?callback=${callbackUrl}`,
       'facebookAuth',

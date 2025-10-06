@@ -1,10 +1,12 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/contexts/AuthContext';
 import { apiService, GoogleUser, FacebookUser } from '@/lib/api';
 import { 
   Chrome, 
@@ -18,6 +20,8 @@ import {
 import { Alert, AlertDescription } from '@/components/ui/alert';
 
 export const AuthIntegration = () => {
+  const navigate = useNavigate();
+  const { login } = useAuth();
   const [googleUser, setGoogleUser] = useState<GoogleUser | null>(null);
   const [facebookUser, setFacebookUser] = useState<FacebookUser | null>(null);
   const [whatsappMessage, setWhatsappMessage] = useState('');
@@ -27,6 +31,95 @@ export const AuthIntegration = () => {
     whatsapp: false,
   });
   const { toast } = useToast();
+
+  // Listen for OAuth success messages from popup windows
+  useEffect(() => {
+    const handleMessage = async (event: MessageEvent) => {
+      if (event.origin !== window.location.origin) return;
+
+      if (event.data.type === 'GOOGLE_AUTH_SUCCESS') {
+        try {
+          // Get user profile after successful OAuth
+          const userProfile = await apiService.getUserProfile();
+          
+          // Login user through context
+          login({
+            id: userProfile.id,
+            email: userProfile.email,
+            name: userProfile.name,
+            picture: userProfile.picture,
+            loginMethod: 'google',
+            verified_email: userProfile.verified_email,
+            given_name: userProfile.given_name,
+            family_name: userProfile.family_name,
+          });
+
+          setGoogleUser(userProfile);
+          
+          toast({
+            title: "Google Login Successful",
+            description: `Welcome, ${userProfile.name}!`,
+          });
+
+          // Redirect to dashboard
+          navigate('/');
+        } catch (error) {
+          console.error('Error getting user profile:', error);
+          toast({
+            title: "Error",
+            description: "Failed to get user profile after Google login",
+            variant: "destructive",
+          });
+        } finally {
+          setIsLoading(prev => ({ ...prev, google: false }));
+        }
+      } else if (event.data.type === 'FACEBOOK_AUTH_SUCCESS') {
+        try {
+          // Get user profile after successful OAuth
+          const userProfile = await apiService.getUserProfile();
+          
+          // Login user through context
+          login({
+            id: userProfile.id,
+            email: userProfile.email,
+            name: userProfile.name,
+            picture: userProfile.picture?.data?.url,
+            loginMethod: 'facebook',
+          });
+
+          setFacebookUser(userProfile);
+          
+          toast({
+            title: "Facebook Login Successful",
+            description: `Welcome, ${userProfile.name}!`,
+          });
+
+          // Redirect to dashboard
+          navigate('/');
+        } catch (error) {
+          console.error('Error getting user profile:', error);
+          toast({
+            title: "Error",
+            description: "Failed to get user profile after Facebook login",
+            variant: "destructive",
+          });
+        } finally {
+          setIsLoading(prev => ({ ...prev, facebook: false }));
+        }
+      } else if (event.data.type === 'GOOGLE_AUTH_ERROR' || event.data.type === 'FACEBOOK_AUTH_ERROR') {
+        const provider = event.data.type.includes('GOOGLE') ? 'google' : 'facebook';
+        setIsLoading(prev => ({ ...prev, [provider]: false }));
+        toast({
+          title: "Authentication Failed",
+          description: event.data.error || `Failed to authenticate with ${provider}`,
+          variant: "destructive",
+        });
+      }
+    };
+
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, [login, navigate, toast]);
 
   const handleGoogleLogin = async () => {
     setIsLoading(prev => ({ ...prev, google: true }));

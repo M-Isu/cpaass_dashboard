@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -22,6 +22,7 @@ import {
 
 const Login = () => {
   const { login } = useAuth();
+  const [searchParams] = useSearchParams();
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -35,6 +36,102 @@ const Login = () => {
   const [error, setError] = useState('');
   const { toast } = useToast();
   const navigate = useNavigate();
+
+  // Handle OAuth error from URL params
+  useEffect(() => {
+    const oauthError = searchParams.get('error');
+    if (oauthError === 'oauth_failed') {
+      setError('OAuth authentication failed. Please try again.');
+      toast({
+        title: "Authentication Failed",
+        description: "OAuth authentication failed. Please try again.",
+        variant: "destructive",
+      });
+    }
+  }, [searchParams, toast]);
+
+  // Listen for OAuth success messages from popup windows
+  useEffect(() => {
+    const handleMessage = async (event: MessageEvent) => {
+      if (event.origin !== window.location.origin) return;
+
+      if (event.data.type === 'GOOGLE_AUTH_SUCCESS') {
+        try {
+          // Get user profile after successful OAuth
+          const userProfile = await apiService.getUserProfile();
+          
+          // Login user through context
+          login({
+            id: userProfile.id,
+            email: userProfile.email,
+            name: userProfile.name,
+            picture: userProfile.picture,
+            loginMethod: 'google',
+            verified_email: userProfile.verified_email,
+            given_name: userProfile.given_name,
+            family_name: userProfile.family_name,
+          });
+          
+          toast({
+            title: "Google Login Successful",
+            description: `Welcome, ${userProfile.name}!`,
+          });
+          
+          navigate('/');
+        } catch (error) {
+          console.error('Error getting user profile:', error);
+          toast({
+            title: "Google Login Failed",
+            description: "Failed to get user profile after Google login",
+            variant: "destructive",
+          });
+        } finally {
+          setIsLoading(prev => ({ ...prev, google: false }));
+        }
+      } else if (event.data.type === 'FACEBOOK_AUTH_SUCCESS') {
+        try {
+          // Get user profile after successful OAuth
+          const userProfile = await apiService.getUserProfile();
+          
+          // Login user through context
+          login({
+            id: userProfile.id,
+            email: userProfile.email,
+            name: userProfile.name,
+            picture: userProfile.picture?.data?.url,
+            loginMethod: 'facebook',
+          });
+          
+          toast({
+            title: "Facebook Login Successful",
+            description: `Welcome, ${userProfile.name}!`,
+          });
+          
+          navigate('/');
+        } catch (error) {
+          console.error('Error getting user profile:', error);
+          toast({
+            title: "Facebook Login Failed",
+            description: "Failed to get user profile after Facebook login",
+            variant: "destructive",
+          });
+        } finally {
+          setIsLoading(prev => ({ ...prev, facebook: false }));
+        }
+      } else if (event.data.type === 'GOOGLE_AUTH_ERROR' || event.data.type === 'FACEBOOK_AUTH_ERROR') {
+        const provider = event.data.type.includes('GOOGLE') ? 'google' : 'facebook';
+        setIsLoading(prev => ({ ...prev, [provider]: false }));
+        toast({
+          title: "Authentication Failed",
+          description: event.data.error || `Failed to authenticate with ${provider}`,
+          variant: "destructive",
+        });
+      }
+    };
+
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, [login, navigate, toast]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -87,28 +184,7 @@ const Login = () => {
     setIsLoading(prev => ({ ...prev, google: true }));
     try {
       await apiService.initiateGoogleLogin();
-      
-      // Get user profile after successful OAuth
-      const userProfile = await apiService.getUserProfile();
-      
-      // Login user through context
-      login({
-        id: userProfile.id,
-        email: userProfile.email,
-        name: userProfile.name,
-        picture: userProfile.picture,
-        loginMethod: 'google',
-        verified_email: userProfile.verified_email,
-        given_name: userProfile.given_name,
-        family_name: userProfile.family_name,
-      });
-      
-      toast({
-        title: "Google Login Successful",
-        description: `Welcome, ${userProfile.name}!`,
-      });
-      
-      navigate('/');
+      // The actual login handling is done in the useEffect message listener
     } catch (error) {
       console.error('Google login error:', error);
       toast({
@@ -116,7 +192,6 @@ const Login = () => {
         description: error instanceof Error ? error.message : "Failed to authenticate with Google",
         variant: "destructive",
       });
-    } finally {
       setIsLoading(prev => ({ ...prev, google: false }));
     }
   };
@@ -125,25 +200,7 @@ const Login = () => {
     setIsLoading(prev => ({ ...prev, facebook: true }));
     try {
       await apiService.initiateFacebookLogin();
-      
-      // Get user profile after successful OAuth
-      const userProfile = await apiService.getUserProfile();
-      
-      // Login user through context
-      login({
-        id: userProfile.id,
-        email: userProfile.email,
-        name: userProfile.name,
-        picture: userProfile.picture?.data?.url,
-        loginMethod: 'facebook',
-      });
-      
-      toast({
-        title: "Facebook Login Successful",
-        description: `Welcome, ${userProfile.name}!`,
-      });
-      
-      navigate('/');
+      // The actual login handling is done in the useEffect message listener
     } catch (error) {
       console.error('Facebook login error:', error);
       toast({
@@ -151,7 +208,6 @@ const Login = () => {
         description: error instanceof Error ? error.message : "Failed to authenticate with Facebook",
         variant: "destructive",
       });
-    } finally {
       setIsLoading(prev => ({ ...prev, facebook: false }));
     }
   };
