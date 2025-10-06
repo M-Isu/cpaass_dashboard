@@ -1,0 +1,35 @@
+name: TypeScript CI
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build TypeScript project
+        run: npm run build
+
+      - name: Push to Docker Hub
+        uses: mr-smithers-excellent/docker-build-push@v4
+        with:
+          image: mustaphaisu/cpaas_frontend
+          registry: docker.io
+          username: ${{ secrets.DOCKER_ISU_USERNAME }}
+          password: ${{ secrets.DOCKER_ISU_PASSWORD }}
