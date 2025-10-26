@@ -1,51 +1,39 @@
-
+import React, { useEffect, useState } from 'react';
 import { MessageSquare, Phone, Video, Code, Clock } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { getRecentActivity } from '@/lib/activity';
 
-const activities = [
-  {
-    type: "message",
-    title: "SMS Campaign sent",
-    description: "Marketing campaign to 15,000 contacts",
-    time: "2 minutes ago",
-    icon: MessageSquare,
-    color: "text-blue-600",
-  },
-  {
-    type: "call",
-    title: "Voice call completed",
-    description: "Customer support call - 45 minutes",
-    time: "15 minutes ago",
-    icon: Phone,
-    color: "text-green-600",
-  },
-  {
-    type: "video",
-    title: "Video conference ended",
-    description: "Team meeting with 8 participants",
-    time: "1 hour ago",
-    icon: Video,
-    color: "text-purple-600",
-  },
-  {
-    type: "api",
-    title: "API key generated",
-    description: "New API key for mobile app",
-    time: "2 hours ago",
-    icon: Code,
-    color: "text-orange-600",
-  },
-  {
-    type: "message",
-    title: "Webhook configured",
-    description: "Message delivery webhook setup",
-    time: "3 hours ago",
-    icon: MessageSquare,
-    color: "text-blue-600",
-  },
-];
+const iconMap = {
+  message: MessageSquare,
+  call: Phone,
+  video: Video,
+  api: Code,
+};
 
 export function RecentActivity() {
+  const [activities, setActivities] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let mounted = true;
+    setLoading(true);
+    getRecentActivity(10)
+      .then(data => {
+        if (mounted) {
+          setActivities(data.activities || data);
+          setLoading(false);
+        }
+      })
+      .catch(e => {
+        if (mounted) {
+          setError('Failed to load activity');
+          setLoading(false);
+        }
+      });
+    return () => { mounted = false; };
+  }, []);
+
   return (
     <Card className="border-blue-100">
       <CardHeader>
@@ -55,20 +43,31 @@ export function RecentActivity() {
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="space-y-4">
-          {activities.map((activity, index) => (
-            <div key={index} className="flex items-start space-x-3">
-              <div className="flex-shrink-0">
-                <activity.icon className={`w-5 h-5 ${activity.color}`} />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-blue-900">{activity.title}</p>
-                <p className="text-xs text-blue-600">{activity.description}</p>
-                <p className="text-xs text-blue-400 mt-1">{activity.time}</p>
-              </div>
-            </div>
-          ))}
-        </div>
+        {loading ? (
+          <div className="text-blue-600 py-6 text-center">Loading activity...</div>
+        ) : error ? (
+          <div className="text-red-500 py-6 text-center">{error}</div>
+        ) : activities.length === 0 ? (
+          <div className="text-gray-400 py-6 text-center">No recent activity</div>
+        ) : (
+          <div className="space-y-4">
+            {activities.map((activity, index) => {
+              const Icon = iconMap[activity.type] || MessageSquare;
+              return (
+                <div key={index} className="flex items-start space-x-3">
+                  <div className="flex-shrink-0">
+                    <Icon className={`w-5 h-5 text-blue-600`} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-blue-900">{activity.title}</p>
+                    <p className="text-xs text-blue-600">{activity.description}</p>
+                    <p className="text-xs text-blue-400 mt-1">{activity.time}</p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </CardContent>
     </Card>
   );

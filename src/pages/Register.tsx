@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
+import { apiService } from '@/lib/api';
 import { 
   Chrome, 
   Facebook, 
@@ -68,28 +69,27 @@ const Register = () => {
 
     setIsLoading(prev => ({ ...prev, email: true }));
     try {
-      // Note: This would need to be implemented in your backend
-      // For now, we'll simulate a successful registration
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
+  const result = await apiService.signup(formData.email, formData.password, formData.name);
+
       toast({
         title: "Registration Successful",
         description: "Welcome to CPaaS Hub!",
       });
-      
-      // Login user through context
+
+      // Login user through context (apiService.signup stores token)
       login({
-        email: formData.email,
-        name: formData.name,
+        email: result.email,
+        name: result.name || formData.name,
         loginMethod: 'email'
       });
-      
+
       navigate('/');
-    } catch (error) {
-      setError('Registration failed. Please try again.');
+    } catch (err: any) {
+      console.error('Signup error:', err);
+      setError(err?.message || 'Registration failed. Please try again.');
       toast({
         title: "Registration Failed",
-        description: "Please try again later",
+        description: err?.message || "Please try again later",
         variant: "destructive",
       });
     } finally {

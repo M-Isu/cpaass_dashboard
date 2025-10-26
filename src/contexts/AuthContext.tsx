@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { apiService } from '@/lib/api';
 
 export interface User {
   id?: string;
@@ -43,9 +44,34 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     const checkAuth = () => {
       try {
         const storedUser = localStorage.getItem('user');
+        const token = localStorage.getItem('token');
         if (storedUser) {
           const userData = JSON.parse(storedUser);
           setUser(userData);
+        } else if (token) {
+          // If token exists but no stored user, fetch profile from backend
+          // and populate AuthContext. This makes session restoration robust.
+          (async () => {
+            try {
+              const profile = await apiService.getUserProfile();
+              const userData = {
+                id: (profile as any).id || (profile as any).email,
+                email: (profile as any).email,
+                name: (profile as any).name || (profile as any).email?.split('@')?.[0],
+                picture: (profile as any).picture || undefined,
+                loginMethod: 'email',
+                verified_email: (profile as any).verified_email,
+                given_name: (profile as any).given_name,
+                family_name: (profile as any).family_name,
+              };
+              setUser(userData as any);
+              localStorage.setItem('user', JSON.stringify(userData));
+            } catch (err) {
+              console.error('Failed to restore session from token:', err);
+              // If token invalid, remove it
+              localStorage.removeItem('token');
+            }
+          })();
         }
       } catch (error) {
         console.error('Error checking authentication:', error);

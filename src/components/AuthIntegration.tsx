@@ -39,30 +39,26 @@ export const AuthIntegration = () => {
 
       if (event.data.type === 'GOOGLE_AUTH_SUCCESS') {
         try {
-          // Get user profile after successful OAuth
           const userProfile = await apiService.getUserProfile();
-          
-          // Login user through context
-          login({
-            id: userProfile.id,
-            email: userProfile.email,
-            name: userProfile.name,
-            picture: userProfile.picture,
-            loginMethod: 'google',
-            verified_email: userProfile.verified_email,
-            given_name: userProfile.given_name,
-            family_name: userProfile.family_name,
-          });
-
-          setGoogleUser(userProfile);
-          
-          toast({
-            title: "Google Login Successful",
-            description: `Welcome, ${userProfile.name}!`,
-          });
-
-          // Redirect to dashboard
-          navigate('/');
+          // Type guard for GoogleUser
+          if ('verified_email' in userProfile) {
+            login({
+              id: userProfile.id,
+              email: userProfile.email,
+              name: userProfile.name,
+              picture: userProfile.picture,
+              loginMethod: 'google',
+              verified_email: userProfile.verified_email,
+              given_name: userProfile.given_name,
+              family_name: userProfile.family_name,
+            });
+            setGoogleUser(userProfile);
+            toast({
+              title: "Google Login Successful",
+              description: `Welcome, ${userProfile.name}!`,
+            });
+            navigate('/');
+          }
         } catch (error) {
           console.error('Error getting user profile:', error);
           toast({
@@ -75,27 +71,30 @@ export const AuthIntegration = () => {
         }
       } else if (event.data.type === 'FACEBOOK_AUTH_SUCCESS') {
         try {
-          // Get user profile after successful OAuth
           const userProfile = await apiService.getUserProfile();
-          
-          // Login user through context
-          login({
-            id: userProfile.id,
-            email: userProfile.email,
-            name: userProfile.name,
-            picture: userProfile.picture?.data?.url,
-            loginMethod: 'facebook',
-          });
-
-          setFacebookUser(userProfile);
-          
-          toast({
-            title: "Facebook Login Successful",
-            description: `Welcome, ${userProfile.name}!`,
-          });
-
-          // Redirect to dashboard
-          navigate('/');
+          // Type guard for FacebookUser
+          if (
+            userProfile &&
+            typeof userProfile.picture === 'object' &&
+            userProfile.picture !== null &&
+            'data' in userProfile.picture &&
+            userProfile.picture.data &&
+            typeof userProfile.picture.data.url === 'string'
+          ) {
+            login({
+              id: userProfile.id,
+              email: userProfile.email,
+              name: userProfile.name,
+              picture: userProfile.picture.data.url,
+              loginMethod: 'facebook',
+            });
+            setFacebookUser(userProfile as import('@/lib/api').FacebookUser);
+            toast({
+              title: "Facebook Login Successful",
+              description: `Welcome, ${userProfile.name}!`,
+            });
+            navigate('/');
+          }
         } catch (error) {
           console.error('Error getting user profile:', error);
           toast({
@@ -171,9 +170,20 @@ export const AuthIntegration = () => {
       return;
     }
 
+    // For demo, prompt for phone number. In production, use a proper input field.
+    const phoneNumber = prompt('Enter recipient phone number (with country code):');
+    if (!phoneNumber) {
+      toast({
+        title: "Error",
+        description: "Please enter a phone number",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsLoading(prev => ({ ...prev, whatsapp: true }));
     try {
-      await apiService.sendWhatsAppMessage(whatsappMessage);
+      await apiService.sendWhatsAppMessage(phoneNumber, whatsappMessage);
       toast({
         title: "Success",
         description: "WhatsApp message sent successfully!",
@@ -231,6 +241,7 @@ export const AuthIntegration = () => {
                 disabled={isLoading.google}
                 className="w-full"
                 variant="outline"
+                title="Sign in with your real Google account"
               >
                 <Chrome className="h-4 w-4 mr-2" />
                 {isLoading.google ? 'Connecting...' : 'Sign in with Google'}
@@ -277,6 +288,7 @@ export const AuthIntegration = () => {
                 disabled={isLoading.facebook}
                 className="w-full"
                 variant="outline"
+                title="Sign in with your real Facebook account"
               >
                 <Facebook className="h-4 w-4 mr-2" />
                 {isLoading.facebook ? 'Connecting...' : 'Sign in with Facebook'}

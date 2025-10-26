@@ -41,6 +41,7 @@ import {
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 
+import KeysAndSecrets from './KeysAndSecrets';
 const menuItems = [
   {
     title: "Dashboard",
@@ -71,6 +72,11 @@ const menuItems = [
     title: "Analytics",
     url: "#",
     icon: BarChart3,
+  },
+  {
+    title: "Keys & Secrets",
+    url: "#",
+    icon: Settings,
   },
 ];
 
@@ -148,6 +154,7 @@ export function AppSidebar() {
   const [templateCategory, setTemplateCategory] = useState("General");
   const [selectedTemplate, setSelectedTemplate] = useState(null);
 
+  const [showKeys, setShowKeys] = useState(false);
   const handleMenuItemClick = (title) => {
     if (title === "Messaging") {
       setShowMessagePopup(true);
@@ -157,6 +164,8 @@ export function AppSidebar() {
       setShowVideoPopup(true);
     } else if (title === "APIs") {
       setShowApiPopup(true);
+    } else if (title === "Keys & Secrets") {
+      setShowKeys(true);
     }
   };
 
@@ -279,7 +288,7 @@ export function AppSidebar() {
 
   return (
     <>
-      <Sidebar className="border-r border-blue-100">
+  <Sidebar className="border-r border-blue-100">
         <SidebarHeader className="p-4">
           <div className="flex items-center space-x-2">
             <div className="w-8 h-8 bg-gradient-to-r from-blue-600 to-blue-700 rounded-lg flex items-center justify-center">
@@ -376,6 +385,36 @@ export function AppSidebar() {
           </div>
         </SidebarFooter>
       </Sidebar>
+
+      {/* Keys & Secrets Modal */}
+      {showKeys && (
+        <div className="fixed inset-0 bg-gray-900 bg-opacity-60 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-auto">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 bg-gray-50">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 bg-blue-500 rounded-lg flex items-center justify-center">
+                  <Settings className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-semibold text-gray-900">Keys & Secrets</h3>
+                  <p className="text-sm text-gray-500">Manage your tokens and secrets for integrations</p>
+                </div>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowKeys(false)}
+                className="h-9 w-9 p-0 hover:bg-gray-200 rounded-lg"
+              >
+                <X className="w-5 h-5 text-gray-500" />
+              </Button>
+            </div>
+            <div className="p-6">
+              <KeysAndSecrets />
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Message Popup Modal */}
       {showMessagePopup && (

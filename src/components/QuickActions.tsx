@@ -1,17 +1,25 @@
-import { Plus, Send, Phone, Video, Code, Settings, X, Save, FileText, Trash2, Mail, Smartphone } from "lucide-react";
+import { Plus, Send, Phone, Video, Code, Settings, X, Save, FileText, Trash2, Mail, Smartphone, MessageSquare } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
 import { PredictiveTextInput } from "./PredictiveTextInput";
+import BulkMessaging from "./BulkMessaging";
 import { apiService } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
+import { getUserKeys } from './KeysAndSecrets';
 
 const actions = [
   {
     title: "Send Message",
-    description: "Send SMS or chat message",
+    description: "Send individual SMS or chat message",
     icon: Send,
     color: "bg-blue-500 hover:bg-blue-600",
+  },
+  {
+    title: "Bulk Messages",
+    description: "Send messages to multiple recipients",
+    icon: Plus,
+    color: "bg-indigo-500 hover:bg-indigo-600",
   },
   {
     title: "Make Call",
@@ -84,9 +92,22 @@ export default function QuickActions() {
   const [templateCategory, setTemplateCategory] = useState("General");
   const [selectedTemplate, setSelectedTemplate] = useState(null);
 
+  const [showBulkMessagePopup, setShowBulkMessagePopup] = useState(false);
+
+  // Facebook-specific states
+  const [fbAccessToken, setFbAccessToken] = useState("");
+  const [fbPageId, setFbPageId] = useState("");
+  const [mediaUrl, setMediaUrl] = useState("");
+  const [mediaType, setMediaType] = useState("");
+
+  // For QuickActions, use stored keys if available
+  const userKeys = getUserKeys();
+
   const handleActionClick = (actionTitle) => {
     if (actionTitle === "Send Message") {
       setShowMessagePopup(true);
+    } else if (actionTitle === "Bulk Messages") {
+      setShowBulkMessagePopup(true);
     } else if (actionTitle === "Make Call") {
       setShowCallPopup(true);
     } else if (actionTitle === "Video Call") {
@@ -105,7 +126,6 @@ export default function QuickActions() {
       });
       return;
     }
-
     if (messageType === "sms" && !messagePhoneNumber.trim()) {
       toast({
         title: "Error",
@@ -114,7 +134,6 @@ export default function QuickActions() {
       });
       return;
     }
-
     if (messageType === "whatsapp" && !messagePhoneNumber.trim()) {
       toast({
         title: "Error",
@@ -123,7 +142,6 @@ export default function QuickActions() {
       });
       return;
     }
-
     if (messageType === "email" && !emailAddress.trim()) {
       toast({
         title: "Error",
@@ -132,43 +150,85 @@ export default function QuickActions() {
       });
       return;
     }
-
+    if (messageType === "facebook-messenger" && (!messagePhoneNumber.trim() || !(fbAccessToken || userKeys.facebookAccessToken))) {
+      toast({
+        title: "Error",
+        description: "Recipient ID and access token required",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (messageType === "facebook-page-post" && (!(fbPageId || userKeys.facebookPageId) || !(fbAccessToken || userKeys.facebookAccessToken))) {
+      toast({
+        title: "Error",
+        description: "Page ID and access token required",
+        variant: "destructive",
+      });
+      return;
+    }
     setIsLoading(true);
     try {
       let response;
-      
       switch (messageType) {
         case 'sms':
           response = await apiService.sendSMS(messagePhoneNumber, message);
           break;
         case 'email':
-          // Pass subject separately; backend now uses it as service_name
           response = await apiService.sendEmail(emailAddress, emailSubject, message);
           break;
         case 'whatsapp':
           response = await apiService.sendWhatsAppMessage(messagePhoneNumber, message);
           break;
+        case 'facebook-messenger': {
+          const accessToken = fbAccessToken || userKeys.facebookAccessToken || '';
+          const res = await fetch(`/api/facebook/send-message/${messagePhoneNumber}`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': accessToken,
+            },
+            body: JSON.stringify({ text: message, mediaUrl, mediaType, to: messagePhoneNumber }),
+          });
+          if (!res.ok) throw new Error(await res.text());
+          response = { success: true };
+          break;
+        }
+        case 'facebook-page-post': {
+          const accessToken = fbAccessToken || userKeys.facebookAccessToken || '';
+          const pageId = fbPageId || userKeys.facebookPageId || '';
+          const res = await fetch(`/api/facebook/post?page-id=${pageId}`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': accessToken,
+            },
+            body: JSON.stringify({ text: message, mediaUrl, mediaType, to: pageId }),
+          });
+          if (!res.ok) throw new Error(await res.text());
+          response = { success: true };
+          break;
+        }
         default:
           throw new Error('Invalid message type');
       }
-
-      console.log("Message sent successfully", response);
       toast({
         title: "Message Sent Successfully",
         description: `Your ${messageType.toUpperCase()} message has been sent!`,
       });
-
       setShowMessagePopup(false);
       setMessage("");
       setMessagePhoneNumber("");
       setEmailAddress("");
       setEmailSubject("");
+      setFbAccessToken("");
+      setFbPageId("");
+      setMediaUrl("");
+      setMediaType("");
       setShowMessageConfirmation(true);
       setTimeout(() => {
         setShowMessageConfirmation(false);
       }, 3000);
     } catch (error) {
-      console.error("Error sending message:", error);
       toast({
         title: "Failed to Send Message",
         description: error instanceof Error ? error.message : "An error occurred while sending the message",
@@ -297,7 +357,7 @@ export default function QuickActions() {
       {/* Message Popup Modal */}
       {showMessagePopup && (
         <div className="fixed inset-0 bg-gray-900 bg-opacity-60 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-auto">
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 bg-gray-50">
               <div className="flex items-center space-x-3">
                 <div className="w-10 h-10 bg-blue-500 rounded-lg flex items-center justify-center">
@@ -320,7 +380,7 @@ export default function QuickActions() {
             
             <div className="flex">
               {/* Main Content */}
-              <div className="flex-1 px-6 py-6 space-y-6">
+              <div className="flex-1 px-6 py-6 space-y-6 overflow-auto max-h-[70vh]">
                 <div className="space-y-2">
                   <label className="block text-sm font-semibold text-gray-700">Message Type</label>
                   <div className="flex space-x-3">
@@ -350,6 +410,24 @@ export default function QuickActions() {
                     >
                       <Mail className="w-4 h-4" />
                       Email
+                    </button>
+                    <button 
+                      className={`px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 ${
+                        messageType === 'facebook-messenger' ? 'bg-blue-700 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      }`}
+                      onClick={() => setMessageType('facebook-messenger')}
+                    >
+                      <MessageSquare className="w-4 h-4" />
+                      Facebook Messenger
+                    </button>
+                    <button 
+                      className={`px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 ${
+                        messageType === 'facebook-page-post' ? 'bg-blue-900 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      }`}
+                      onClick={() => setMessageType('facebook-page-post')}
+                    >
+                      <FileText className="w-4 h-4" />
+                      Facebook Page Post
                     </button>
                   </div>
                 </div>
@@ -803,6 +881,37 @@ export default function QuickActions() {
                   Start Session
                 </Button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk Message Popup Modal */}
+      {showBulkMessagePopup && (
+        <div className="fixed inset-0 bg-gray-900 bg-opacity-60 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-5xl max-h-[90vh] overflow-auto">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 bg-gray-50">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 bg-indigo-500 rounded-lg flex items-center justify-center">
+                  <Plus className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-semibold text-gray-900">Bulk Messaging</h3>
+                  <p className="text-sm text-gray-500">Send messages to multiple recipients</p>
+                </div>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowBulkMessagePopup(false)}
+                className="h-9 w-9 p-0 hover:bg-gray-200 rounded-lg"
+              >
+                <X className="w-5 h-5 text-gray-500" />
+              </Button>
+            </div>
+            
+            <div className="p-6">
+              <BulkMessaging />
             </div>
           </div>
         </div>

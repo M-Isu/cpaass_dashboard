@@ -151,22 +151,21 @@ const Login = () => {
 
     setIsLoading(prev => ({ ...prev, email: true }));
     try {
-      // Note: This would need to be implemented in your backend
-      // For now, we'll simulate a successful login
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
+      // Call backend login endpoint
+      const result = await apiService.login(formData.email, formData.password);
+
       toast({
-        title: "Login Successful",
-        description: "Welcome back!",
+        title: 'Login Successful',
+        description: `Welcome back, ${result.name || result.email}!`,
       });
-      
-      // Login user through context
+
+      // Save a minimal user in context and redirect. Token is already stored by apiService.login
       login({
-        email: formData.email,
-        name: formData.email.split('@')[0],
-        loginMethod: 'email'
+        email: result.email,
+        name: result.name || result.email.split('@')[0],
+        loginMethod: 'email',
       });
-      
+
       navigate('/');
     } catch (error) {
       setError('Invalid email or password');
