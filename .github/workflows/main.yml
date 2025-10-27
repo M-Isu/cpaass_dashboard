@@ -1,75 +1,35 @@
-name: Node.js CI, Push & Deploy to GitHub Packages
+name: TypeScript CI
 
 on:
   push:
-    branches: [ "development" ]
+    branches: [ "main" ]
   pull_request:
-    branches: [ "development" ]
+    branches: [ "main" ]
 
 jobs:
-  build-and-deploy:
+  build:
     runs-on: ubuntu-latest
 
     steps:
-      # Checkout repository
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # Setup Node.js
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '18'  # or 20 if needed
+          node-version: '20'
           cache: 'npm'
 
-      # Install dependencies
       - name: Install dependencies
-        run: npm install --development
+        run: npm install
 
-      # Log in to GitHub Container Registry (GHCR)
-      - name: Log in to GHCR
-        run: echo "${{ secrets.TOKEN }}" | sudo docker login ghcr.io -u m-isu --password-stdin
+      - name: Build TypeScript project
+        run: npm run build
 
-      # Build and push Docker image to GHCR with "latest" tag
-      - name: Build and push Docker image to GHCR
-        uses: mr-smithers-excellent/docker-build-push@v6
+      - name: Push to Docker Hub
+        uses: mr-smithers-excellent/docker-build-push@v4
         with:
-          image: cpaas_frontend1010
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.TOKEN }}
-          tags: latest
-          addLatest: false
-          tagSemver: false
-
-      # Deploy to Remote Server via SSH
-      - name: Deploy to Remote Server via SSH
-        uses: appleboy/ssh-action@v1.1.0
-        with:
-          host: ${{ secrets.SERVER_HOST }}
-          username: ${{ secrets.SERVER_USER }}
-          key: ${{ secrets.SERVER_SSH_KEY }}
-          script: |
-            echo "Logging in to GHCR..."
-            echo "${{ secrets.TOKEN }}" | sudo docker login ghcr.io -u m-isu --password-stdin
-
-            echo "Pulling latest image..."
-            sudo docker pull ghcr.io/m-isu/cpaas_frontend1010:latest
-
-            echo "Stopping and removing old container..."
-            sudo docker stop cpaas_frontend1010 || true
-            sudo docker rm cpaas_frontend1010 || true
-
-            echo "Starting new container...."
-            cd ~/env_variables_for_gateway
-            sudo docker run -d \
-              --env-file .env \
-              -v /etc/app_keys:/etc/app_keys:ro \
-              -p 1010:3001 \
-              --name cpaas_frontend1010 \
-              ghcr.io/m-isu/cpaas_frontend1010:latest
-
-            echo "Cleaning up old images..."
-            sudo docker image prune -f
-
-            echo "Deployment complete!"
+          image: mustaphaisu/cpaas_frontend
+          registry: docker.io
+          username: ${{ secrets.DOCKER_ISU_USERNAME }}
+          password: ${{ secrets.DOCKER_ISU_PASSWORD }}
